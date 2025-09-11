@@ -170,6 +170,24 @@ EOF
     echo -n "''$trimmed_line'' "
   done <<<"$keys")];
   };
+
+  # open VM main user root access to apply further configurations
+  nix.settings.trusted-users = [
+    "root"
+    "@wheel"
+    "$VMUSER"
+  ];
+  security.sudo.extraRules = [
+    {
+      users = ["$VMUSER"];
+      commands = [
+        {
+          command = "ALL";
+          options = ["NOPASSWD"];
+        }
+      ];
+    }
+  ];
   system.stateVersion = "25.05";
 }
 EOF
