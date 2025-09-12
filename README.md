@@ -21,6 +21,7 @@ This script has successfully been tested on at least the follow hosting provider
 * [Contabo](https://contabo.com)
 * [Liga Hosting](https://ligahosting.ro)
 * [AWS Lightsail](https://aws.amazon.com/lightsail/)
+* [Microsoft Azure](https://azure.microsoft.com/en-us/products/virtual-machines/)
 * [Windcloud](https://windcloud.de/)
 * [Clouding.io](https://clouding.io)
 * [Scaleway](https://scaleway.com)
@@ -296,6 +297,47 @@ Make sure to set `PROVIDER="lightsail"`.
 Setting a root ssh key manually is not necessary, the key provided as part of the instance launch process will be used.
 
 If you run into issues, debug using the most similar ec2 instance that is on the Nitro platform. Nitro platform instances have a serial console that allow you to troubleshoot boot issues, and Lightsail instances are just EC2 with a different pricing model and UI.
+
+### Microsoft Azure
+`PROVIDER="azure"` is detected automatically when `/etc/waagent.conf` is present. Otherwise set explicitly.
+
+To overcome [issue 136](https://github.com/elitak/nixos-infect/issues/136), for an Azure VM an explicit disk configuration is required. For that the script uses the preset filesystem labels `cloudimg-rootfs`, `BOOT` and `UEFI`.
+
+#### Ubuntu
+
+For Ubuntu the preset labels can be used out of the box.
+
+```yaml
+#cloud-config
+package_upgrade: true
+packages:
+- curl
+runcmd:
+- curl https://raw.githubusercontent.com/kaiwalter/nixos-infect/master/nixos-infect | sudo env NIX_CHANNEL=nixos-25.05 bash -x
+```
+
+#### CBL-Mariner
+
+For CBL-Mariner the preset labels need to be adjusted to conform with an Ubuntu setup and with the script. Swap needs to be turned off explicitly.
+
+```yaml
+#cloud-config
+runcmd:
+# align filesystem labels to Azure Ubuntu VM
+- tdnf install dosfstools e2fsprogs xfsprogs -y
+- fatlabel /dev/sda1 UEFI
+- e2label /dev/sda2 BOOT
+- e2label /dev/sda3 cloudimg-rootfs
+- lsblk -o name,type,fstype,fsver,mountpoints,label /dev/sda
+# inject nixos
+- curl https://raw.githubusercontent.com/kaiwalter/nixos-infect/master/nixos-infect | sudo env NIX_CHANNEL=nixos-25.05 NO_SWAP=X bash -x
+```
+
+#### Tested on
+|Distribution|       Name         | Status    | test date|
+|------------|--------------------|-----------|----------|
+|Ubuntu      | 24.04              |**success**|2025-09-11|
+|CBL-Mariner | cbl-mariner-2-gen2 |**success**|2025-09-12|
 
 ### Windcloud
 Tested on vServer. The network configuration seems to be important so the same tweaks as for DigitalOcean are necessary (see above).
