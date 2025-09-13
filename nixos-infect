@@ -132,38 +132,31 @@ makeAzureConf() {
 
   cat >/etc/nixos/hardware-configuration.nix <<EOF
 { ... }: {
-    imports = [];
-    boot.initrd.availableKernelModules = [ "hv_vmbus" "hv_storvsc" "hv_netvsc" "sd_mod" "sr_mod" "ext4" ];
-    boot.kernelParams = [ "console=ttyS0,115200n8" "earlyprintk=ttyS0" "rootdelay=10" ];
     fileSystems."/" = { device = "/dev/disk/by-label/cloudimg-rootfs"; fsType = "ext4"; };
     fileSystems."/boot" = { device = "/dev/disk/by-label/BOOT"; fsType = "ext4"; };
     fileSystems."/boot/efi" = { device = "/dev/disk/by-label/UEFI"; fsType = "vfat"; options = [ "fmask=0077" "dmask=0077" ]; };
     swapDevices = [];
-}
-EOF
-
-  cat >/etc/nixos/bootloader.nix <<EOF
-{ ... }: {
-  boot.loader.systemd-boot.enable = false;
-  boot.loader.grub = {
-    enable = true;
-    efiSupport = true;
-    devices = [ "nodev" ];
-    efiInstallAsRemovable = true;
-    copyKernels = true;
-  };
-  boot.loader.efi.canTouchEfiVariables = false;
+    boot.loader.systemd-boot.enable = false;
+    boot.loader.grub = {
+      enable = true;
+      efiSupport = true;
+      devices = [ "nodev" ];
+      efiInstallAsRemovable = true;
+      copyKernels = true;
+    };
+    boot.loader.efi.canTouchEfiVariables = false;
 }
 EOF
 
   cat >/etc/nixos/configuration.nix <<EOF
-{ ... }: {
-  imports = [ ./hardware-configuration.nix ./bootloader.nix ];
-  networking.hostName = "$(hostname -s)";
-  services.openssh.enable = true;
+{ modulesPath, ... }: {
+  imports = [
+    "\${modulesPath}/virtualisation/azure-common.nix"
+    ./hardware-configuration.nix
+  ];
   users.users."$VMUSER" = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "network" ];
+    extraGroups = [ "wheel" ];
     openssh.authorizedKeys.keys = [$(while read -r line; do
     line=$(echo -n "$line" | sed 's/\r//g')
     trimmed_line=$(echo -n "$line" | xargs)
@@ -171,7 +164,7 @@ EOF
   done <<<"$keys")];
   };
 
-  # open VM main user root access to apply further configurations
+  # open VM main user sudo access to apply further NixOS configurations
   nix.settings.trusted-users = [
     "root"
     "@wheel"
