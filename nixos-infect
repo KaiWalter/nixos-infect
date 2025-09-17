@@ -138,12 +138,18 @@ makeAzureConf() {
     swapDevices = [];
     boot.loader.systemd-boot.enable = false;
     boot.loader.grub = {
+      # Use GRUB in EFI removable mode so Azure Gen2 will always find BOOTX64.EFI
+      # even after a deallocate/start cycle that wipes NVRAM boot entries.
       enable = true;
+      device = "nodev"; # single ESP, no block device install into MBR
       efiSupport = true;
-      devices = [ "nodev" ];
-      efiInstallAsRemovable = true;
-      copyKernels = true;
+      efiInstallAsRemovable = true; # keeps /EFI/BOOT/BOOTX64.EFI synced each rebuild
+      # Not strictly needed; kernels are available via store references. Reduces ESP churn.
+      copyKernels = false;
+      # Short menu delay (adjust if you want interactive rescue time)
+      timeout = 1;
     };
+    # Azure firmware can discard NVRAM entries; rely purely on removable path.
     boot.loader.efi.canTouchEfiVariables = false;
 }
 EOF
