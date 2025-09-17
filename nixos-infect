@@ -132,24 +132,29 @@ makeAzureConf() {
 
   cat >/etc/nixos/hardware-configuration.nix <<EOF
 { ... }: {
+    # Azure-specific boot configuration rationale:
+    # - Disable systemd-boot and use GRUB in EFI removable mode so /EFI/BOOT/BOOTX64.EFI is
+    #   refreshed on every rebuild; Azure Gen2 can discard NVRAM entries after deallocate/start.
+    # - Rely solely on the removable fallback path (efiInstallAsRemovable + canTouchEfiVariables = false)
+    #   to avoid brittleness when firmware resets BootOrder.
+    # - device = "nodev" since we only target the ESP, no legacy MBR install.
+    # - copyKernels = false reduces writes to the ESP; GRUB loads kernels from the Nix store paths.
+    # - timeout = 1 provides a minimal rescue window without slowing unattended boots.
+    # - Keeping the ESP mount options restrictive (fmask/dmask) limits exposure of boot files.
+    # Adjust values (e.g. timeout) later via your flake host configuration if needed.
     fileSystems."/" = { device = "/dev/disk/by-label/cloudimg-rootfs"; fsType = "ext4"; };
     fileSystems."/boot" = { device = "/dev/disk/by-label/BOOT"; fsType = "ext4"; };
     fileSystems."/boot/efi" = { device = "/dev/disk/by-label/UEFI"; fsType = "vfat"; options = [ "fmask=0077" "dmask=0077" ]; };
     swapDevices = [];
     boot.loader.systemd-boot.enable = false;
     boot.loader.grub = {
-      # Use GRUB in EFI removable mode so Azure Gen2 will always find BOOTX64.EFI
-      # even after a deallocate/start cycle that wipes NVRAM boot entries.
       enable = true;
-      device = "nodev"; # single ESP, no block device install into MBR
+      device = "nodev";
       efiSupport = true;
-      efiInstallAsRemovable = true; # keeps /EFI/BOOT/BOOTX64.EFI synced each rebuild
-      # Not strictly needed; kernels are available via store references. Reduces ESP churn.
+      efiInstallAsRemovable = true;
       copyKernels = false;
-      # Short menu delay (adjust if you want interactive rescue time)
       timeout = 1;
     };
-    # Azure firmware can discard NVRAM entries; rely purely on removable path.
     boot.loader.efi.canTouchEfiVariables = false;
 }
 EOF
